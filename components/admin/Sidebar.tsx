@@ -4,6 +4,7 @@ import type { Role } from '@/lib/types'
 
 const SUPER_NAV = [
   { href: '/admin/super/approvals', label: 'Approvals' },
+  { href: '/admin/super/teacher-review', label: 'Teacher Review' },
   { href: '/admin/super/users', label: 'Users' },
   { href: '/admin/super/analytics', label: 'Analytics' },
 ]

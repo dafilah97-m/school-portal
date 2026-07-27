@@ -32,6 +32,7 @@ const NAV_LINKS = [
 export default function Navbar() {
   const router = useRouter()
   const [role, setRole] = useState<Role | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const itemCount = useCartStore((s) => s.itemCount())
   const openCart = useCartStore((s) => s.openCart)
@@ -45,15 +46,17 @@ export default function Navbar() {
       } = await supabase.auth.getUser()
       if (!user) {
         setRole(null)
+        setAvatarUrl(null)
         setLoaded(true)
         return
       }
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, avatar_url')
         .eq('id', user.id)
         .single()
       setRole((profile?.role as Role) ?? null)
+      setAvatarUrl(profile?.avatar_url ?? null)
       setLoaded(true)
     }
 
@@ -117,8 +120,13 @@ export default function Navbar() {
 
           {loaded && role ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="p-2 rounded-lg hover:bg-white/10 flex items-center gap-1 text-sm outline-none">
-                <User size={18} />
+              <DropdownMenuTrigger className="p-1.5 rounded-lg hover:bg-white/10 flex items-center gap-1 text-sm outline-none">
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <User size={18} />
+                )}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => router.push(ROLE_HOME[role])}>

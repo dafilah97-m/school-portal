@@ -3,12 +3,21 @@ export type Role = 'super_admin' | 'shop_admin' | 'subject_admin' | 'student_par
 export type ResourceStatus = 'draft' | 'pending_approval' | 'published' | 'rejected'
 export type PaymentStatus = 'pending' | 'paid' | 'failed'
 export type FulfillmentStatus = 'unfulfilled' | 'processing' | 'delivered'
+export type Occupation = 'student' | 'teacher' | 'parent'
+export type TeacherReviewStatus = 'pending' | 'approved' | 'dismissed'
 
 export interface Profile {
   id: string
   email: string
   role: Role
   assigned_subject: string | null
+  full_name: string | null
+  phone: string | null
+  id_number: string | null
+  occupation: Occupation | null
+  teacher_subject: string | null
+  avatar_url: string | null
+  teacher_review_status: TeacherReviewStatus | null
   created_at: string
 }
 

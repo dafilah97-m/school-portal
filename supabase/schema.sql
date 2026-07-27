@@ -7,26 +7,54 @@ create type user_role as enum ('super_admin', 'shop_admin', 'subject_admin', 'st
 create type resource_status as enum ('draft', 'pending_approval', 'published', 'rejected');
 create type payment_status as enum ('pending', 'paid', 'failed');
 create type fulfillment_status as enum ('unfulfilled', 'processing', 'delivered');
+create type occupation_type as enum ('student', 'teacher', 'parent');
+create type teacher_review_status as enum ('pending', 'approved', 'dismissed');
 
 -- ─────────────────────────────────────────────────────────────────
 -- profiles
 -- ─────────────────────────────────────────────────────────────────
 create table public.profiles (
-  id               uuid primary key references auth.users(id) on delete cascade,
-  email            text not null,
-  role             user_role not null default 'student_parent',
-  assigned_subject text,
-  created_at       timestamptz not null default now()
+  id                    uuid primary key references auth.users(id) on delete cascade,
+  email                 text not null,
+  role                  user_role not null default 'student_parent',
+  assigned_subject      text,
+  full_name             text,
+  phone                 text,
+  id_number             text,
+  occupation            occupation_type,
+  teacher_subject       text,
+  avatar_url            text,
+  teacher_review_status teacher_review_status,
+  created_at            timestamptz not null default now()
 );
 
+-- Registration collects KYC/occupation fields via supabase.auth.signUp's
+-- `options.data` (raw_user_meta_data); this trigger copies them onto the
+-- profiles row it creates. Teachers land in a Super Admin review queue —
+-- picking "teacher" here is informational until approved, it does not
+-- grant subject_admin access on its own.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  meta jsonb := new.raw_user_meta_data;
+  occ occupation_type := nullif(meta->>'occupation', '')::occupation_type;
 begin
-  insert into public.profiles (id, email) values (new.id, new.email);
+  insert into public.profiles (
+    id, email, full_name, phone, id_number, occupation, teacher_subject, teacher_review_status
+  ) values (
+    new.id,
+    new.email,
+    meta->>'full_name',
+    meta->>'phone',
+    meta->>'id_number',
+    occ,
+    meta->>'teacher_subject',
+    case when occ = 'teacher' then 'pending'::teacher_review_status else null end
+  );
   return new;
 end;
 $$;
@@ -510,3 +538,21 @@ create policy "super admin full access private resources"
 -- RLS path that lets any authenticated client reach it directly —
 -- this is the concrete mechanism that prevents unauthorized direct
 -- URL access to Edu-Vault PDFs.
+
+-- avatars: public read (profile pictures aren't sensitive); path
+-- convention {user_id}/avatar.<ext>. The very first upload happens via
+-- the service-role client during registration (before the user has a
+-- session to satisfy these policies) — these policies cover any later
+-- change a signed-in user makes to their own avatar.
+insert into storage.buckets (id, name, public)
+  values ('avatars', 'avatars', true)
+  on conflict (id) do nothing;
+
+create policy "public read avatars"
+  on storage.objects for select
+  using (bucket_id = 'avatars');
+
+create policy "user manage own avatar"
+  on storage.objects for all
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
