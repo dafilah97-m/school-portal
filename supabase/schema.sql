@@ -106,6 +106,16 @@ create policy "super_admin update any profile incl role"
   using (public.current_role() = 'super_admin')
   with check (true);
 
+-- Safe-to-share subset of profiles (no email/phone/id_number) for
+-- displaying names/avatars next to Q&A posts and similar community
+-- content — runs as the view owner (bypasses RLS on the base table by
+-- design, same mechanism as edu_resources_public), so its own column
+-- list is the only security boundary.
+create view public.profiles_public as
+  select id, full_name, avatar_url from public.profiles;
+
+grant select on public.profiles_public to authenticated;
+
 -- ─────────────────────────────────────────────────────────────────
 -- campaigns_stores
 -- ─────────────────────────────────────────────────────────────────
@@ -206,7 +216,7 @@ create policy "subject admin insert own draft or pending"
   on public.edu_resources for insert
   with check (
     created_by = auth.uid()
-    and public.current_role() = 'subject_admin'
+    and public.current_role() in ('subject_admin', 'super_admin')
     and status in ('draft', 'pending_approval')
     and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
   );
@@ -277,7 +287,7 @@ create policy "subject admin insert own draft or pending video"
   on public.educational_videos for insert
   with check (
     created_by = auth.uid()
-    and public.current_role() = 'subject_admin'
+    and public.current_role() in ('subject_admin', 'super_admin')
     and status in ('draft', 'pending_approval')
     and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
   );
@@ -340,7 +350,7 @@ create policy "subject admin insert own draft or pending news"
   on public.news_events for insert
   with check (
     created_by = auth.uid()
-    and public.current_role() = 'subject_admin'
+    and public.current_role() in ('subject_admin', 'super_admin')
     and status in ('draft', 'pending_approval')
   );
 
@@ -357,6 +367,172 @@ create policy "super admin update any news"
 create policy "super admin delete news"
   on public.news_events for delete
   using (public.current_role() = 'super_admin');
+
+-- ─────────────────────────────────────────────────────────────────
+-- tests / test_questions — timed multiple-choice practice tests.
+-- Same draft → pending_approval → published/rejected workflow as
+-- edu_resources. Questions carry the correct answer, which must never
+-- reach a student taking the test — test_questions has no public
+-- select policy at all; students only ever read test_questions_public
+-- (no correct_option_index column). Grading happens server-side via
+-- the service-role client, which is the only thing ever allowed to
+-- write test_attempts.score / test_attempt_answers.is_correct.
+-- ─────────────────────────────────────────────────────────────────
+create table public.tests (
+  id                uuid primary key default gen_random_uuid(),
+  title             text not null,
+  subject           text not null,
+  grade_level       text,
+  duration_minutes  int not null,
+  status            resource_status not null default 'draft',
+  rejection_comment text,
+  created_by        uuid references public.profiles(id),
+  approved_by       uuid references public.profiles(id),
+  approved_at       timestamptz,
+  created_at        timestamptz not null default now()
+);
+
+create index tests_status_idx on public.tests (status);
+create index tests_created_by_idx on public.tests (created_by);
+
+alter table public.tests enable row level security;
+
+create policy "public view published tests"
+  on public.tests for select
+  using (status = 'published');
+
+create policy "subject admin view own tests"
+  on public.tests for select
+  using (created_by = auth.uid());
+
+create policy "super admin view all tests"
+  on public.tests for select
+  using (public.current_role() = 'super_admin');
+
+create policy "subject admin insert own draft or pending test"
+  on public.tests for insert
+  with check (
+    created_by = auth.uid()
+    and public.current_role() in ('subject_admin', 'super_admin')
+    and status in ('draft', 'pending_approval')
+    and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
+  );
+
+create policy "subject admin update own non-published test"
+  on public.tests for update
+  using (created_by = auth.uid() and status <> 'published')
+  with check (
+    created_by = auth.uid()
+    and status in ('draft', 'pending_approval')
+    and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
+  );
+
+create policy "super admin update any test"
+  on public.tests for update
+  using (public.current_role() = 'super_admin')
+  with check (true);
+
+create policy "super admin delete tests"
+  on public.tests for delete
+  using (public.current_role() = 'super_admin');
+
+create table public.test_questions (
+  id                  uuid primary key default gen_random_uuid(),
+  test_id             uuid not null references public.tests(id) on delete cascade,
+  question_text       text not null,
+  options             jsonb not null,
+  correct_option_index int not null,
+  order_index         int not null default 0,
+  created_at          timestamptz not null default now()
+);
+
+create index test_questions_test_idx on public.test_questions (test_id);
+
+alter table public.test_questions enable row level security;
+
+create policy "subject admin manage own test questions"
+  on public.test_questions for all
+  using (exists (
+    select 1 from public.tests t where t.id = test_questions.test_id and t.created_by = auth.uid()
+  ))
+  with check (exists (
+    select 1 from public.tests t where t.id = test_questions.test_id and t.created_by = auth.uid()
+  ));
+
+create policy "super admin manage all test questions"
+  on public.test_questions for all
+  using (public.current_role() = 'super_admin')
+  with check (public.current_role() = 'super_admin');
+
+-- No general select policy for test_questions — students never read the
+-- base table (it holds correct_option_index). They read this view instead:
+create view public.test_questions_public as
+  select tq.id, tq.test_id, tq.question_text, tq.options, tq.order_index
+  from public.test_questions tq
+  join public.tests t on t.id = tq.test_id
+  where t.status = 'published';
+
+grant select on public.test_questions_public to authenticated;
+
+create table public.test_attempts (
+  id              uuid primary key default gen_random_uuid(),
+  test_id         uuid not null references public.tests(id),
+  user_id         uuid not null references public.profiles(id),
+  started_at      timestamptz not null default now(),
+  submitted_at    timestamptz,
+  score           int,
+  total_questions int not null,
+  created_at      timestamptz not null default now()
+);
+
+create index test_attempts_user_idx on public.test_attempts (user_id);
+create index test_attempts_test_idx on public.test_attempts (test_id);
+
+alter table public.test_attempts enable row level security;
+
+create policy "student view own attempts"
+  on public.test_attempts for select
+  using (user_id = auth.uid());
+
+create policy "student start own attempt"
+  on public.test_attempts for insert
+  with check (user_id = auth.uid() and submitted_at is null and score is null);
+
+create policy "test owner view attempts on own tests"
+  on public.test_attempts for select
+  using (exists (
+    select 1 from public.tests t where t.id = test_attempts.test_id and t.created_by = auth.uid()
+  ));
+
+create policy "super admin view all attempts"
+  on public.test_attempts for select
+  using (public.current_role() = 'super_admin');
+
+-- Deliberately no update policy: submitted_at/score are only ever set by
+-- the service-role client inside the grading route, so a student can't
+-- award themselves a perfect score by writing to their own attempt row.
+
+create table public.test_attempt_answers (
+  id                    uuid primary key default gen_random_uuid(),
+  attempt_id            uuid not null references public.test_attempts(id) on delete cascade,
+  question_id           uuid not null references public.test_questions(id),
+  selected_option_index int,
+  is_correct            boolean,
+  created_at            timestamptz not null default now()
+);
+
+create index test_attempt_answers_attempt_idx on public.test_attempt_answers (attempt_id);
+
+alter table public.test_attempt_answers enable row level security;
+
+create policy "student view own attempt answers"
+  on public.test_attempt_answers for select
+  using (exists (
+    select 1 from public.test_attempts a where a.id = test_attempt_answers.attempt_id and a.user_id = auth.uid()
+  ));
+
+-- No insert/update policy: these rows are graded and written exclusively
+-- by the service-role client during submission.
 
 -- ─────────────────────────────────────────────────────────────────
 -- orders / order_items
@@ -460,6 +636,80 @@ create policy "super admin view all purchases"
   using (public.current_role() = 'super_admin');
 
 -- ─────────────────────────────────────────────────────────────────
+-- qa_questions / qa_answers — a public-to-the-school-community forum
+-- (any authenticated role) scoped by subject, unlike the other content
+-- types this is NOT gated behind Super Admin approval — it's live
+-- discussion, not published material. Attachments are optional and
+-- point into the public qa-attachments storage bucket.
+-- ─────────────────────────────────────────────────────────────────
+create table public.qa_questions (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references public.profiles(id),
+  subject         text not null,
+  title           text not null,
+  body            text,
+  attachment_url  text,
+  attachment_type text,
+  created_at      timestamptz not null default now()
+);
+
+create index qa_questions_subject_idx on public.qa_questions (subject);
+
+alter table public.qa_questions enable row level security;
+
+create policy "authenticated view questions"
+  on public.qa_questions for select
+  to authenticated
+  using (true);
+
+create policy "authenticated ask own question"
+  on public.qa_questions for insert
+  to authenticated
+  with check (user_id = auth.uid());
+
+create policy "owner update own question"
+  on public.qa_questions for update
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create policy "owner or super admin delete question"
+  on public.qa_questions for delete
+  using (user_id = auth.uid() or public.current_role() = 'super_admin');
+
+create table public.qa_answers (
+  id              uuid primary key default gen_random_uuid(),
+  question_id     uuid not null references public.qa_questions(id) on delete cascade,
+  user_id         uuid not null references public.profiles(id),
+  body            text,
+  attachment_url  text,
+  attachment_type text,
+  created_at      timestamptz not null default now()
+);
+
+create index qa_answers_question_idx on public.qa_answers (question_id);
+
+alter table public.qa_answers enable row level security;
+
+create policy "authenticated view answers"
+  on public.qa_answers for select
+  to authenticated
+  using (true);
+
+create policy "authenticated post own answer"
+  on public.qa_answers for insert
+  to authenticated
+  with check (user_id = auth.uid());
+
+create policy "owner update own answer"
+  on public.qa_answers for update
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create policy "owner or super admin delete answer"
+  on public.qa_answers for delete
+  using (user_id = auth.uid() or public.current_role() = 'super_admin');
+
+-- ─────────────────────────────────────────────────────────────────
 -- analytics view — queried only via the service-role client from
 -- the super-admin analytics route, never granted to anon/authenticated
 -- ─────────────────────────────────────────────────────────────────
@@ -556,3 +806,19 @@ create policy "user manage own avatar"
   on storage.objects for all
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
   with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- qa-attachments: public read (same security-through-obscurity-via-uuid
+-- tradeoff as public-images — these are informal forum attachments, not
+-- DRM'd content), path convention {user_id}/{uuid}.<ext>.
+insert into storage.buckets (id, name, public)
+  values ('qa-attachments', 'qa-attachments', true)
+  on conflict (id) do nothing;
+
+create policy "public read qa attachments"
+  on storage.objects for select
+  using (bucket_id = 'qa-attachments');
+
+create policy "authenticated upload own qa attachment"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'qa-attachments' and (storage.foldername(name))[1] = auth.uid()::text);

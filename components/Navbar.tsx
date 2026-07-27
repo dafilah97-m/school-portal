@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { ShoppingCart, User, LogOut, LayoutDashboard } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
@@ -27,10 +27,12 @@ const NAV_LINKS = [
   { href: '/shop', label: 'Shop' },
   { href: '/exams', label: 'Exams' },
   { href: '/news-events', label: 'News & Events' },
+  { href: '/qa', label: 'Q&A' },
 ]
 
 export default function Navbar() {
   const router = useRouter()
+  const pathname = usePathname()
   const [role, setRole] = useState<Role | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -71,6 +73,12 @@ export default function Navbar() {
     await supabase.auth.signOut()
     router.push('/')
     router.refresh()
+  }
+
+  // /admin and /dashboard have their own sidebar/dashboard navigation —
+  // the public marketing navbar would just be redundant clutter there.
+  if (pathname.startsWith('/admin') || pathname.startsWith('/dashboard')) {
+    return null
   }
 
   return (

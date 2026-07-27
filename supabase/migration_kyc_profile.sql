@@ -4,8 +4,24 @@
 -- brand-new project — it's already folded into schema.sql for fresh
 -- installs.
 
-create type occupation_type as enum ('student', 'teacher', 'parent');
-create type teacher_review_status as enum ('pending', 'approved', 'dismissed');
+-- CREATE TYPE has no IF NOT EXISTS, and Supabase's SQL editor runs a
+-- pasted script as one transaction — if this type already existed from a
+-- prior partial run, the bare CREATE TYPE below would abort the whole
+-- script before the ALTER TABLE ever ran, silently leaving the columns
+-- missing. Wrapping it like this makes re-running always safe.
+do $$
+begin
+  create type occupation_type as enum ('student', 'teacher', 'parent');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type teacher_review_status as enum ('pending', 'approved', 'dismissed');
+exception
+  when duplicate_object then null;
+end $$;
 
 alter table public.profiles
   add column if not exists full_name text,

@@ -20,6 +20,7 @@ const SUBJECT_NAV = [
   { href: '/admin/subjects/new', label: 'Upload New' },
   { href: '/admin/subjects/videos', label: 'Videos' },
   { href: '/admin/subjects/news', label: 'News & Events' },
+  { href: '/admin/subjects/tests', label: 'Practice Tests' },
 ]
 
 const NAV: Record<Role, { href: string; label: string }[]> = {

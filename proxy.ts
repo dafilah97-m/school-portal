@@ -9,6 +9,7 @@ const PROTECTED: { pattern: RegExp; roles: Role[] }[] = [
   { pattern: /^\/admin\/shop/, roles: ['super_admin', 'shop_admin'] },
   { pattern: /^\/admin\/subjects/, roles: ['super_admin', 'subject_admin'] },
   { pattern: /^\/dashboard/, roles: ALL_ROLES },
+  { pattern: /^\/qa/, roles: ALL_ROLES },
   { pattern: /^\/api\/admin\/shop/, roles: ['super_admin', 'shop_admin'] },
   { pattern: /^\/api\/admin\/super/, roles: ['super_admin'] },
   { pattern: /^\/api\/edu-vault\/(upload|submit)/, roles: ['super_admin', 'subject_admin'] },
@@ -17,6 +18,10 @@ const PROTECTED: { pattern: RegExp; roles: Role[] }[] = [
   { pattern: /^\/api\/videos/, roles: ['super_admin', 'subject_admin'] },
   { pattern: /^\/api\/news\/(approve|reject)/, roles: ['super_admin'] },
   { pattern: /^\/api\/news/, roles: ['super_admin', 'subject_admin'] },
+  { pattern: /^\/api\/tests\/attempts/, roles: ALL_ROLES },
+  { pattern: /^\/api\/tests\/(approve|reject)/, roles: ['super_admin'] },
+  { pattern: /^\/api\/tests\/(submit|update)/, roles: ['super_admin', 'subject_admin'] },
+  { pattern: /^\/api\/tests$/, roles: ['super_admin', 'subject_admin'] },
 ]
 
 const ROLE_HOME: Record<Role, string> = {
@@ -85,9 +90,11 @@ export const config = {
   matcher: [
     '/admin/:path*',
     '/dashboard/:path*',
+    '/qa/:path*',
     '/api/admin/:path*',
     '/api/edu-vault/:path*',
     '/api/videos/:path*',
     '/api/news/:path*',
+    '/api/tests/:path*',
   ],
 }

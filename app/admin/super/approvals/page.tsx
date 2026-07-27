@@ -1,14 +1,14 @@
 import { createClient } from '@/lib/supabase-server'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ApprovalQueueCard from '@/components/admin/ApprovalQueueCard'
-import type { EduResource, EducationalVideo, NewsEvent } from '@/lib/types'
+import type { EduResource, EducationalVideo, NewsEvent, Test } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ApprovalsPage() {
   const supabase = await createClient()
 
-  const [{ data: resources }, { data: videos }, { data: posts }] = await Promise.all([
+  const [{ data: resources }, { data: videos }, { data: posts }, { data: tests }] = await Promise.all([
     supabase
       .from('edu_resources')
       .select('*')
@@ -24,11 +24,17 @@ export default async function ApprovalsPage() {
       .select('*')
       .eq('status', 'pending_approval')
       .order('created_at', { ascending: true }),
+    supabase
+      .from('tests')
+      .select('*')
+      .eq('status', 'pending_approval')
+      .order('created_at', { ascending: true }),
   ])
 
   const resourceRows = (resources ?? []) as EduResource[]
   const videoRows = (videos ?? []) as EducationalVideo[]
   const postRows = (posts ?? []) as NewsEvent[]
+  const testRows = (tests ?? []) as Test[]
 
   return (
     <div>
@@ -39,6 +45,7 @@ export default async function ApprovalsPage() {
           <TabsTrigger value="papers">Past papers ({resourceRows.length})</TabsTrigger>
           <TabsTrigger value="videos">Videos ({videoRows.length})</TabsTrigger>
           <TabsTrigger value="news">News & Events ({postRows.length})</TabsTrigger>
+          <TabsTrigger value="tests">Tests ({testRows.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="papers" className="space-y-3 mt-4">
@@ -84,6 +91,22 @@ export default async function ApprovalsPage() {
                 subtitle={post.event_date ? new Date(post.event_date).toLocaleDateString() : 'News post'}
                 approveEndpoint={`/api/news/approve/${post.id}`}
                 rejectEndpoint={`/api/news/reject/${post.id}`}
+              />
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="tests" className="space-y-3 mt-4">
+          {testRows.length === 0 ? (
+            <p className="text-sm text-gray-500">Nothing waiting for review.</p>
+          ) : (
+            testRows.map((test) => (
+              <ApprovalQueueCard
+                key={test.id}
+                title={test.title}
+                subtitle={`${test.subject}${test.grade_level ? ` · ${test.grade_level}` : ''} · ${test.duration_minutes} min`}
+                approveEndpoint={`/api/tests/approve/${test.id}`}
+                rejectEndpoint={`/api/tests/reject/${test.id}`}
               />
             ))
           )}

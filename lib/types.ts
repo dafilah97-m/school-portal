@@ -135,3 +135,76 @@ export interface PurchasedResource {
   order_id: string | null
   purchase_date: string
 }
+
+export interface Test {
+  id: string
+  title: string
+  subject: string
+  grade_level: string | null
+  duration_minutes: number
+  status: ResourceStatus
+  rejection_comment: string | null
+  created_by: string | null
+  approved_by: string | null
+  approved_at: string | null
+  created_at: string
+}
+
+export interface TestQuestion {
+  id: string
+  test_id: string
+  question_text: string
+  options: string[]
+  correct_option_index: number
+  order_index: number
+  created_at: string
+}
+
+export interface TestQuestionPublic {
+  id: string
+  test_id: string
+  question_text: string
+  options: string[]
+  order_index: number
+}
+
+export interface TestAttempt {
+  id: string
+  test_id: string
+  user_id: string
+  started_at: string
+  submitted_at: string | null
+  score: number | null
+  total_questions: number
+  created_at: string
+}
+
+export interface TestAttemptAnswer {
+  id: string
+  attempt_id: string
+  question_id: string
+  selected_option_index: number | null
+  is_correct: boolean | null
+  created_at: string
+}
+
+export interface QaQuestion {
+  id: string
+  user_id: string
+  subject: string
+  title: string
+  body: string | null
+  attachment_url: string | null
+  attachment_type: string | null
+  created_at: string
+}
+
+export interface QaAnswer {
+  id: string
+  question_id: string
+  user_id: string
+  body: string | null
+  attachment_url: string | null
+  attachment_type: string | null
+  created_at: string
+}

@@ -1,6 +1,10 @@
 import Link from 'next/link'
+import { BookOpen, HeartPulse, TrendingUp, GraduationCap } from 'lucide-react'
 import { createPublicClient } from '@/lib/supabase-public'
 import VideoCard from '@/components/videos/VideoCard'
+import InfoCard from '@/components/InfoCard'
+import CareerPathCard from '@/components/CareerPathCard'
+import { revisionTips, healthTips, whyItMatters, careerPaths } from '@/lib/landing-content'
 import type { EducationalVideo } from '@/lib/types'
 
 export const revalidate = 60
@@ -45,7 +49,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section>
+      <section className="mb-14">
         <h2 className="text-lg font-semibold mb-4 text-primary">Educational videos</h2>
         {!videos || videos.length === 0 ? (
           <p className="text-sm text-muted-foreground">No videos published yet — check back soon.</p>
@@ -56,6 +60,58 @@ export default async function Home() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="mb-14">
+        <div className="flex items-center gap-2 mb-4">
+          <BookOpen size={20} className="text-[#C9A227]" />
+          <h2 className="text-lg font-semibold text-primary">Revision tips</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {revisionTips.map((tip) => (
+            <InfoCard key={tip.title} icon={BookOpen} title={tip.title} description={tip.description} />
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-14">
+        <div className="flex items-center gap-2 mb-4">
+          <HeartPulse size={20} className="text-[#C9A227]" />
+          <h2 className="text-lg font-semibold text-primary">Health tips</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {healthTips.map((tip) => (
+            <InfoCard key={tip.title} icon={HeartPulse} title={tip.title} description={tip.description} />
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-14">
+        <div className="flex items-center gap-2 mb-4">
+          <TrendingUp size={20} className="text-[#C9A227]" />
+          <h2 className="text-lg font-semibold text-primary">Why performing well in school matters</h2>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {whyItMatters.map((tip) => (
+            <InfoCard key={tip.title} icon={TrendingUp} title={tip.title} description={tip.description} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <GraduationCap size={20} className="text-[#C9A227]" />
+          <h2 className="text-lg font-semibold text-primary">Tertiary courses & career paths</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          A general guide to which high school subjects support which career paths — always check the
+          specific entry requirements of the tertiary institution and program you&apos;re aiming for.
+        </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {careerPaths.map((path) => (
+            <CareerPathCard key={path.field} path={path} />
+          ))}
+        </div>
       </section>
     </div>
   )
