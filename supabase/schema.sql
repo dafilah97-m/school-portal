@@ -46,6 +46,18 @@ as $$
   select role from public.profiles where id = auth.uid();
 $$;
 
+-- security-definer helper: a subject_admin with no assignment (null) may
+-- post to any subject; one with an assignment is scoped to only that subject.
+create or replace function public.current_assigned_subject()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select assigned_subject from public.profiles where id = auth.uid();
+$$;
+
 alter table public.profiles enable row level security;
 
 create policy "view own profile"
@@ -168,12 +180,17 @@ create policy "subject admin insert own draft or pending"
     created_by = auth.uid()
     and public.current_role() = 'subject_admin'
     and status in ('draft', 'pending_approval')
+    and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
   );
 
 create policy "subject admin update own non-published"
   on public.edu_resources for update
   using (created_by = auth.uid() and status <> 'published')
-  with check (created_by = auth.uid() and status in ('draft', 'pending_approval'));
+  with check (
+    created_by = auth.uid()
+    and status in ('draft', 'pending_approval')
+    and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
+  );
 
 create policy "super admin update any resource"
   on public.edu_resources for update
@@ -234,12 +251,17 @@ create policy "subject admin insert own draft or pending video"
     created_by = auth.uid()
     and public.current_role() = 'subject_admin'
     and status in ('draft', 'pending_approval')
+    and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
   );
 
 create policy "subject admin update own non-published video"
   on public.educational_videos for update
   using (created_by = auth.uid() and status <> 'published')
-  with check (created_by = auth.uid() and status in ('draft', 'pending_approval'));
+  with check (
+    created_by = auth.uid()
+    and status in ('draft', 'pending_approval')
+    and (public.current_assigned_subject() is null or subject = public.current_assigned_subject())
+  );
 
 create policy "super admin update any video"
   on public.educational_videos for update

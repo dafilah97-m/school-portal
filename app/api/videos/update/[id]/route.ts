@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
-import { requireRole } from '@/lib/require-role'
+import { requireRole, assertSubjectMatch } from '@/lib/require-role'
 import { ApiError } from '@/lib/api-error'
 
 export async function PATCH(
@@ -8,9 +8,11 @@ export async function PATCH(
   segmentData: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user } = await requireRole('subject_admin', 'super_admin')
+    const { user, role, assignedSubject } = await requireRole('subject_admin', 'super_admin')
     const { id } = await segmentData.params
     const body = await request.json()
+
+    if (body.subject) assertSubjectMatch(role, assignedSubject, body.subject)
 
     const updates: Record<string, unknown> = {}
     if (body.title != null) updates.title = body.title

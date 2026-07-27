@@ -23,7 +23,11 @@ export default async function UsersPage() {
                 Joined {new Date(profile.created_at).toLocaleDateString()}
               </p>
             </div>
-            <RoleSelect userId={profile.id} currentRole={profile.role} />
+            <RoleSelect
+              userId={profile.id}
+              currentRole={profile.role}
+              currentAssignedSubject={profile.assigned_subject}
+            />
           </div>
         ))}
       </div>

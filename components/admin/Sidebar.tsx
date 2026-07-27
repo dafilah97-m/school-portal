@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import SignOutButton from '@/components/admin/SignOutButton'
 import type { Role } from '@/lib/types'
 
 const SUPER_NAV = [
@@ -30,16 +31,21 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
 export default function Sidebar({ role }: { role: Role | null }) {
   const items = role ? NAV[role] : []
   return (
-    <aside className="w-56 shrink-0 bg-primary p-4 space-y-1 min-h-[calc(100vh-4rem)]">
-      {items.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          className="block text-sm px-3 py-2 rounded-lg text-primary-foreground/85 hover:bg-white/10 hover:text-[#C9A227] transition-colors"
-        >
-          {item.label}
-        </Link>
-      ))}
+    <aside className="w-56 shrink-0 bg-primary p-4 flex flex-col min-h-[calc(100vh-4rem)]">
+      <div className="space-y-1 flex-1">
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="block text-sm px-3 py-2 rounded-lg text-primary-foreground/85 hover:bg-white/10 hover:text-[#C9A227] transition-colors"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
+      <div className="border-t border-white/10 pt-2 mt-2">
+        <SignOutButton />
+      </div>
     </aside>
   )
 }

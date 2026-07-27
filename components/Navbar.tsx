@@ -1,10 +1,18 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ShoppingCart, User } from 'lucide-react'
+import { ShoppingCart, User, LogOut, LayoutDashboard } from 'lucide-react'
 import { createClient } from '@/lib/supabase'
 import { useCartStore } from '@/lib/cart-store'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 import type { Role } from '@/lib/types'
 
 const ROLE_HOME: Record<Role, string> = {
@@ -22,6 +30,7 @@ const NAV_LINKS = [
 ]
 
 export default function Navbar() {
+  const router = useRouter()
   const [role, setRole] = useState<Role | null>(null)
   const [loaded, setLoaded] = useState(false)
   const itemCount = useCartStore((s) => s.itemCount())
@@ -35,6 +44,7 @@ export default function Navbar() {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) {
+        setRole(null)
         setLoaded(true)
         return
       }
@@ -52,6 +62,13 @@ export default function Navbar() {
     const { data: sub } = supabase.auth.onAuthStateChange(() => loadRole())
     return () => sub.subscription.unsubscribe()
   }, [])
+
+  async function handleSignOut() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/')
+    router.refresh()
+  }
 
   return (
     <header className="bg-primary text-primary-foreground sticky top-0 z-40 border-b border-[#14315C] shadow-sm">
@@ -99,12 +116,22 @@ export default function Navbar() {
           </button>
 
           {loaded && role ? (
-            <Link
-              href={ROLE_HOME[role]}
-              className="p-2 rounded-lg hover:bg-white/10 flex items-center gap-1 text-sm"
-            >
-              <User size={18} />
-            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger className="p-2 rounded-lg hover:bg-white/10 flex items-center gap-1 text-sm outline-none">
+                <User size={18} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => router.push(ROLE_HOME[role])}>
+                  <LayoutDashboard size={14} />
+                  Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
+                  <LogOut size={14} />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : loaded ? (
             <Link
               href="/login"
